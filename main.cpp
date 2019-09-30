@@ -100,13 +100,56 @@ void fillData(a1_data * data, pos a, pos b, double num){
 				if(inRange(y, a.y, b.y)){
 					for(int x = 0; x < data->dim_x; ++x){
 						if(inRange(x, a.x, b.x)){
-							data->a[arrayPos(x,y,z)] = num;
+							data->b[arrayPos(x,y,z)] = num;
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+double findMin(double * arr, int len){
+	double min = arr[0];
+	for(int i = 0; i < len; i++){
+		if(arr[i] < min){
+			min = arr[i];
+		}
+	}
+	return min;
+}
+
+double findMax(double * arr, int len){
+	double max = arr[0];
+	for(int i = 0; i < len; i++){
+		if(arr[i] > max){
+			max = arr[i];
+		}
+	}
+	return max;
+}
+
+string printLite(a1_data * data, int q, double min, double max){
+	char scale[15];
+	strcpy(scale, " .:-=+*#%@");
+	ostringstream oss;
+	for(int z = 0; z < data->dim_z; ++z){
+		if(z % q == 0){
+			for(int y = 0; y < data->dim_y; ++y){
+				if(y % q == 0){
+					for(int x = 0; x < data->dim_x; ++x){
+						if(x % q == 0){
+							int a = int((((data->b[arrayPos(x,y,z)] - min) / (max - min)) - 0.01) * 10);
+							oss << scale[a];
+						}
+					}
+					oss << "\n";
+				}
+			}
+			oss << "-------------Z-Axis=" << z << "-------------\n";
+		}
+	}
+	return oss.str();
 }
 
 void stencil(double * grid_a, double * grid_b, double alpha, double beta){
@@ -205,6 +248,7 @@ void init(a1_data * data){
 	ifstream inputFile ("a1_input.txt");
 	if(inputFile.is_open()){
 		int n = -1;
+		int k = 0;
 		while(getline(inputFile,line)){
 			istringstream aLine(line);
 			if(n == -1){
@@ -219,7 +263,8 @@ void init(a1_data * data){
 				data -> beta = data->bx / data->by;
 			}else{
 				for(int i = 0; i < data->dim_x; i++){
-					aLine >> data->a[i];
+					aLine >> data->a[k];
+					k++;
 				}
 			}
 			n++;
@@ -231,6 +276,7 @@ void init(a1_data * data){
 void result(a1_data * data){
 	string line;
 	ofstream outputFile ("a1_output.txt");
+	ofstream visualFile ("a1_visual.txt");
 	if(outputFile.is_open()){
 		outputFile << data->dim_x << " " << data->dim_y << " " << data->dim_z << " ";
 		outputFile << data->ax << " " << data->ay << " " << data->bx << " " << data->by << "\n";
@@ -243,6 +289,13 @@ void result(a1_data * data){
 			}
 		}
 		outputFile.close();
+	}
+	if(visualFile.is_open()){
+		double min = findMin(data->b, data->n);
+		double max = findMax(data->b, data->n);
+		cout << "Min:" << min << " Max:" << max << endl;
+		visualFile << printLite(data, 3, min, max) << endl;
+		visualFile.close();
 	}
 }
 
@@ -274,6 +327,20 @@ void fillQ2(a1_data * data){
 	sawpData(data);
 }
 
+void printData(a1_data * data){
+	cout << "alpha:" << data->alpha << endl;
+	cout << "beta:" << data->beta << endl;
+	cout << "ax:" << data->ax << endl;
+	cout << "ay:" << data->ay << endl;
+	cout << "bx:" << data->bx << endl;
+	cout << "by:" << data->by << endl;
+	cout << "dim_x:" << data->dim_x << endl;
+	cout << "dim_y:" << data->dim_y << endl;
+	cout << "dim_z:" << data->dim_z << endl;
+	cout << "n:" << data->n << endl;
+	//cout << printArray(data->a, data->n);
+}
+
 int main(int argc, char* argv[])
 	{
 		if (argc != 2) {
@@ -302,29 +369,38 @@ int main(int argc, char* argv[])
 		data -> beta = 1.0/12;
 */
 		init(data);
+
+		printData(data);
+
+		double total = 0;
+		for(int i = 0; i < data->n + 1; i++){
+			total += data->a[i];
+		}
+		cout << "Total heat before: " << total << endl;
+		
 		//cout << printArray(data->a, data->n) << endl;
 		//cout << printArray(data->b, data->n) << endl;
 
 //Start calculation
 		startTimer(&timer);
-		for(int i = 0; i < 10; i++){
-			stencil_parallel_naive(data, 0, data->n, param);
+		for(int i = 0; i < param; i++){
+			stencil_parallel_naive(data, 0, data->n, 32);
 			sawpData(data);
 		}
 		stopTimer(&timer);
-		long runTime = getTimerNs(&timer);
-		cout << "Total time: " << setprecision(3) << runTime/1000000 << "ms" << endl;
-//Start calculation
+//End calculation
 
-		double total = 0;
+		long runTime = getTimerNs(&timer);
+		total = 0;
 		for(int i = 0; i < DIM_X * DIM_Y * DIM_Z + 1; i++){
 			total += data->b[i];
 		}
+		cout << "Total heat after: " << total << endl;
+		cout << "Total time: " << setprecision(3) << runTime/1000000 << "ms" << endl;
 
 		//cout << printArray(data->b, 27) << endl;
-		cout << "total: " << total << endl;
 
-		fillQ2(data);
+		//fillQ2(data);
 		result(data);
 		freeMem(data);
 		delete data;
