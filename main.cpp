@@ -106,9 +106,11 @@ int arrayTrans(int i, int dx, int dy, int dz){
 	cartesianPos(i, &x, &y, &z);
 	return arrayPos(modulo(x + dx,DIM_X), modulo(y + dy,DIM_Y), modulo(z + dz,DIM_Z));
 }
+/*
 int arrayTrans_v2(int i, int k, int a, int b){
-	return (modulo(modulo(i, b) + k * a, b)) + (i / b);
+	return (modulo(modulo(i, b) + k * a, b)) + (i / b) * b;
 }
+*/
 
 void fillData(a1_data * data, pos a, pos b, double num){
 	for(int z = 0; z < data->dim_z; ++z){
@@ -222,6 +224,8 @@ void stencil_kernel(a1_data * data, int i){
 		+ data->a[arrayTrans(i,0,0,-1)]);
 }
 
+//not success yet
+/*
 void stencil_kernel_v2(a1_data * data, int i){
 	data->b[i] = data->alpha * data->a[i] 
 		+ data->beta * (data->a[arrayTrans_v2(i,+1,1,data->sum_x)] 
@@ -231,11 +235,12 @@ void stencil_kernel_v2(a1_data * data, int i){
 		+ data->a[arrayTrans_v2(i,+1,data->sum_y,data->sum_z)] 
 		+ data->a[arrayTrans_v2(i,-1,data->sum_y,data->sum_z)]);
 }
+*/
 
 void stencil_parallel_naive(a1_data * data, int op, int ed, int sub){
 	if(ed - op <= sub){
 		for(int i = op; i < ed; i++){
-			stencil_kernel_v2(data,i);
+			stencil_kernel(data,i);
 		}
 	}else{
 		int mid = op + (ed - op) / 2;
@@ -250,7 +255,7 @@ void stencil_parallel_better(a1_data * data, int op, int ed, int sub){
 		return;
 	}else if(ed - op == 1){
 		for(int i = op; i < data->n; i += sub){
-			stencil_kernel_v2(data,i);
+			stencil_kernel(data,i);
 		}
 	}else{
 		int mid = op + (ed - op) / 2;
