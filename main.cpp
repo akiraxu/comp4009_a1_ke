@@ -15,6 +15,8 @@ int DIM_X;
 int DIM_Y;
 int DIM_Z;
 
+long timecost = 0;
+
 struct a1_data {
 	double * a;
 	double * b;
@@ -28,6 +30,7 @@ struct a1_data {
 	int dim_y;
 	int dim_z;
 	int n;
+	int round;
 };
 
 struct pos {
@@ -52,6 +55,14 @@ void sawpData(a1_data * data){
 	temp = data->a;
 	data->a = data->b;
 	data->b = temp;
+}
+
+double calcHeat(double * arr, int len){
+	double total = 0;
+	for(int i = 0; i < len; i++){
+		total += arr[i];
+	}
+	return total;
 }
 
 int fib(int n) 
@@ -133,6 +144,9 @@ string printLite(a1_data * data, int q, double min, double max){
 	char scale[15];
 	strcpy(scale, " .:-=+*#%@");
 	ostringstream oss;
+	oss << "----------ROUND: " << data->round << "----------" << endl;
+	oss << "----------SIZE: " << data->n << " TOTAL HEAT: " << calcHeat(data->a, data->n) << "----------\n";
+	oss << "----------MIN " << min << "  .:-=+*#%@ " << max << " MAX----------\n";
 	for(int z = 0; z < data->dim_z; ++z){
 		if(z % q == 0){
 			for(int y = 0; y < data->dim_y; ++y){
@@ -216,14 +230,16 @@ void stencil_parallel_naive(a1_data * data, int op, int ed, int sub){
 }
 
 void stencil_parallel_better(a1_data * data, int op, int ed, int sub){
-	if(ed - op <= sub){
-		for(int i = op; i < ed; i++){
+	if(ed == op){
+		return;
+	}else if(ed - op == 1){
+		for(int i = op; i < data->n; i += sub){
 			stencil_kernel(data,i);
 		}
 	}else{
 		int mid = op + (ed - op) / 2;
-		cilk_spawn stencil_parallel_naive(data, op, mid, sub);
-		cilk_spawn stencil_parallel_naive(data, mid, ed, sub);
+		cilk_spawn stencil_parallel_better(data, op, mid, sub);
+		cilk_spawn stencil_parallel_better(data, mid, ed, sub);
 		cilk_sync;
 	}
 }
@@ -261,6 +277,7 @@ void init(a1_data * data){
 				data -> b = new double[data->n]();
 				data -> alpha = data->ax / data->ay;
 				data -> beta = data->bx / data->by;
+				data -> round = 0;
 			}else{
 				for(int i = 0; i < data->dim_x; i++){
 					aLine >> data->a[k];
@@ -311,6 +328,7 @@ void fillQ2(a1_data * data){
 	data -> dim_y = 100;
 	data -> dim_z = 100;
 	data -> n = 1000000;
+	data -> round = 0;
 	data -> a = new double[data->n]();
 	data -> b = new double[data->n]();
 
@@ -327,31 +345,38 @@ void fillQ2(a1_data * data){
 	sawpData(data);
 }
 
-void printData(a1_data * data){
-	cout << "alpha:" << data->alpha << endl;
-	cout << "beta:" << data->beta << endl;
-	cout << "ax:" << data->ax << endl;
-	cout << "ay:" << data->ay << endl;
-	cout << "bx:" << data->bx << endl;
-	cout << "by:" << data->by << endl;
-	cout << "dim_x:" << data->dim_x << endl;
-	cout << "dim_y:" << data->dim_y << endl;
-	cout << "dim_z:" << data->dim_z << endl;
-	cout << "n:" << data->n << endl;
+string printData(a1_data * data){
+	ostringstream oss;
+	oss << "alpha:" << data->alpha << endl;
+	oss << "beta:" << data->beta << endl;
+	oss << "ax:" << data->ax << endl;
+	oss << "ay:" << data->ay << endl;
+	oss << "bx:" << data->bx << endl;
+	oss << "by:" << data->by << endl;
+	oss << "dim_x:" << data->dim_x << endl;
+	oss << "dim_y:" << data->dim_y << endl;
+	oss << "dim_z:" << data->dim_z << endl;
+	oss << "n:" << data->n << endl;
+	oss << "round:" << data->round << endl;
 	//cout << printArray(data->a, data->n);
+	return oss.str();
 }
 
 int main(int argc, char* argv[])
 	{
-		if (argc != 2) {
-			cout << "Usage: fib <num>" << endl;
+		if (argc != 4) {
+			cout << "Usage: main <1 for q1, 2 for q3> <iteration> <parallelism>" << endl;
 			return 1;
 		}
 
 		hwtimer_t timer;
 		initTimer(&timer);
 
-		int param = atoi(argv[1]);
+		int method = atoi(argv[1]);
+
+		int iteration = atoi(argv[2]);
+
+		int parallelism = atoi(argv[3]);
 /*
 		startTimer(&timer);
 		int answer = fib(param);
@@ -370,32 +395,30 @@ int main(int argc, char* argv[])
 */
 		init(data);
 
-		printData(data);
+		cout << printData(data);
 
-		double total = 0;
-		for(int i = 0; i < data->n + 1; i++){
-			total += data->a[i];
-		}
-		cout << "Total heat before: " << total << endl;
+		cout << "Total heat before: " << calcHeat(data->a, data->n) << endl;
 		
 		//cout << printArray(data->a, data->n) << endl;
 		//cout << printArray(data->b, data->n) << endl;
 
 //Start calculation
 		startTimer(&timer);
-		for(int i = 0; i < param; i++){
-			stencil_parallel_naive(data, 0, data->n, 32);
+		for(int i = 0; i < iteration; i++){
+			if(method == 1){
+				stencil_parallel_naive(data, 0, data->n, parallelism);
+			}else{
+				stencil_parallel_better(data, 0, parallelism, parallelism);
+			}
 			sawpData(data);
+			(data->round)++;
 		}
 		stopTimer(&timer);
 //End calculation
 
 		long runTime = getTimerNs(&timer);
-		total = 0;
-		for(int i = 0; i < DIM_X * DIM_Y * DIM_Z + 1; i++){
-			total += data->b[i];
-		}
-		cout << "Total heat after: " << total << endl;
+		timecost = runTime;
+		cout << "Total heat after: " << calcHeat(data->b, data->n) << endl;
 		cout << "Total time: " << setprecision(3) << runTime/1000000 << "ms" << endl;
 
 		//cout << printArray(data->b, 27) << endl;
