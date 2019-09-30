@@ -42,6 +42,11 @@ void updateDIM(a1_data * data){
 	DIM_Z = data->dim_z;
 }
 
+void freeMem(a1_data * data){
+	delete data->a;
+	delete data->a;
+}
+
 void sawpData(a1_data * data){
 	double * temp = NULL;
 	temp = data->a;
@@ -242,6 +247,7 @@ void result(a1_data * data){
 }
 
 void fillQ2(a1_data * data){
+	freeMem(data);
 	data -> alpha = 0.5;
 	data -> beta = 1.0/12;
 	data -> ax = 1;
@@ -320,5 +326,7 @@ int main(int argc, char* argv[])
 
 		fillQ2(data);
 		result(data);
+		freeMem(data);
+		delete data;
 		return 0;
 	};
