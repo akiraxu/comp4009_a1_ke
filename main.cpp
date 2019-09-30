@@ -31,6 +31,9 @@ struct a1_data {
 	int dim_z;
 	int n;
 	int round;
+	int sum_x;
+	int sum_y;
+	int sum_z;
 };
 
 struct pos {
@@ -102,6 +105,9 @@ int arrayTrans(int i, int dx, int dy, int dz){
 	int x, y, z;
 	cartesianPos(i, &x, &y, &z);
 	return arrayPos(modulo(x + dx,DIM_X), modulo(y + dy,DIM_Y), modulo(z + dz,DIM_Z));
+}
+int arrayTrans_v2(int i, int k, int a, int b){
+	return (modulo(modulo(i, b) + k * a, b)) + (i / b);
 }
 
 void fillData(a1_data * data, pos a, pos b, double num){
@@ -194,7 +200,7 @@ void stencil_v2(a1_data * data){
 	}
 }
 
-void stencil_parallel_naive(double * grid_a, double * grid_b, double alpha, double beta){
+void stencil_naive(double * grid_a, double * grid_b, double alpha, double beta){
 	for(int i = 0; i < DIM_X * DIM_Y * DIM_Z; ++i){
 		grid_b[i] = alpha * grid_a[i] 
 		+ beta * (grid_a[arrayTrans(i,+1,0,0)] 
@@ -216,10 +222,20 @@ void stencil_kernel(a1_data * data, int i){
 		+ data->a[arrayTrans(i,0,0,-1)]);
 }
 
+void stencil_kernel_v2(a1_data * data, int i){
+	data->b[i] = data->alpha * data->a[i] 
+		+ data->beta * (data->a[arrayTrans_v2(i,+1,1,data->sum_x)] 
+		+ data->a[arrayTrans_v2(i,-1,1,data->sum_x)] 
+		+ data->a[arrayTrans_v2(i,+1,data->sum_x,data->sum_y)] 
+		+ data->a[arrayTrans_v2(i,-1,data->sum_x,data->sum_y)] 
+		+ data->a[arrayTrans_v2(i,+1,data->sum_y,data->sum_z)] 
+		+ data->a[arrayTrans_v2(i,-1,data->sum_y,data->sum_z)]);
+}
+
 void stencil_parallel_naive(a1_data * data, int op, int ed, int sub){
 	if(ed - op <= sub){
 		for(int i = op; i < ed; i++){
-			stencil_kernel(data,i);
+			stencil_kernel_v2(data,i);
 		}
 	}else{
 		int mid = op + (ed - op) / 2;
@@ -234,7 +250,7 @@ void stencil_parallel_better(a1_data * data, int op, int ed, int sub){
 		return;
 	}else if(ed - op == 1){
 		for(int i = op; i < data->n; i += sub){
-			stencil_kernel(data,i);
+			stencil_kernel_v2(data,i);
 		}
 	}else{
 		int mid = op + (ed - op) / 2;
@@ -278,6 +294,9 @@ void init(a1_data * data){
 				data -> alpha = data->ax / data->ay;
 				data -> beta = data->bx / data->by;
 				data -> round = 0;
+				data -> sum_x = data->dim_x;
+				data -> sum_x = data->dim_x * data->dim_y;
+				data -> sum_x = data->dim_x * data->dim_y * data->dim_z;
 			}else{
 				for(int i = 0; i < data->dim_x; i++){
 					aLine >> data->a[k];
@@ -329,6 +348,9 @@ void fillQ2(a1_data * data){
 	data -> dim_z = 100;
 	data -> n = 1000000;
 	data -> round = 0;
+	data -> sum_x = data->dim_x;
+	data -> sum_x = data->dim_x * data->dim_y;
+	data -> sum_x = data->dim_x * data->dim_y * data->dim_z;
 	data -> a = new double[data->n]();
 	data -> b = new double[data->n]();
 
