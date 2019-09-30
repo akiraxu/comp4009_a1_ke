@@ -27,6 +27,7 @@ struct a1_data {
 	int dim_x;
 	int dim_y;
 	int dim_z;
+	int n;
 };
 
 struct pos {
@@ -34,6 +35,12 @@ struct pos {
 	int y;
 	int z;
 };
+
+void updateDIM(a1_data * data){
+	DIM_X = data->dim_x;
+	DIM_Y = data->dim_y;
+	DIM_Z = data->dim_z;
+}
 
 void sawpData(a1_data * data){
 	double * temp = NULL;
@@ -56,11 +63,10 @@ int modulo(int a, int q){
 	return a < 0 ? q + a % q : a % q;
 }
 
-int inRange(int n, int a, int b){
-	if(a > b){
-		return n < a && n >= b;
-	}
-	return n >= 
+bool inRange(int n, int a, int b){
+	if(a == b) return false;
+	if(a > b) return n < a && n >= b;
+	return n >= a && n < b;
 }
 
 int arrayPos(int x, int y, int z){
@@ -83,11 +89,15 @@ int arrayTrans(int i, int dx, int dy, int dz){
 }
 
 void fillData(a1_data * data, pos a, pos b, double num){
-	for(int z = 0; z < DIM_Z; ++z){
-		for(int y = 0; y < DIM_Y; ++y){
-			for(int x = 0; x < DIM_X; ++x){
-				if(x >= a.){
-					data->a[arrayPos(x,y,z)] = num;
+	for(int z = 0; z < data->dim_z; ++z){
+		if(inRange(z, a.z, b.z)){
+			for(int y = 0; y < data->dim_y; ++y){
+				if(inRange(y, a.y, b.y)){
+					for(int x = 0; x < data->dim_x; ++x){
+						if(inRange(x, a.x, b.x)){
+							data->a[arrayPos(x,y,z)] = num;
+						}
+					}
 				}
 			}
 		}
@@ -195,9 +205,11 @@ void init(a1_data * data){
 			if(n == -1){
 				double ax, ay, bx, by;
 				aLine >> data->dim_x >> data->dim_y >> data->dim_z;
+				data -> n = data->dim_x * data->dim_y * data->dim_z;
+				updateDIM(data);
 				aLine >> data->ax >> data->ay >> data->bx >> data->by;
-				data -> a = new double[data->dim_x * data->dim_y * data->dim_z]();
-				data -> b = new double[data->dim_x * data->dim_y * data->dim_z]();
+				data -> a = new double[data->n]();
+				data -> b = new double[data->n]();
 				data -> alpha = data->ax / data->ay;
 				data -> beta = data->bx / data->by;
 			}else{
@@ -229,6 +241,33 @@ void result(a1_data * data){
 	}
 }
 
+void fillQ2(a1_data * data){
+	data -> alpha = 0.5;
+	data -> beta = 1.0/12;
+	data -> ax = 1;
+	data -> ay = 2;
+	data -> bx = 1;
+	data -> by = 12;
+	data -> dim_x = 100;
+	data -> dim_y = 100;
+	data -> dim_z = 100;
+	data -> n = 1000000;
+	data -> a = new double[data->n]();
+	data -> b = new double[data->n]();
+
+	updateDIM(data);
+
+	pos allZero = {.x = 0, .y = 0, .z = 0};
+	pos allMax = {.x = DIM_X, .y = DIM_Y, .z = DIM_Z};
+	fillData(data, allZero, allMax, 20.0);
+
+	pos hotA = {.x = 75, .y = 75, .z = 75};
+	pos hotB = {.x = 85, .y = 85, .z = 85};
+	fillData(data, hotA, hotB, 100.0);
+
+	sawpData(data);
+}
+
 int main(int argc, char* argv[])
 	{
 		if (argc != 2) {
@@ -257,20 +296,18 @@ int main(int argc, char* argv[])
 		data -> beta = 1.0/12;
 */
 		init(data);
-		cout << printArray(data->a, 27) << endl;
-		cout << printArray(data->b, 27) << endl;
-
-		DIM_X = DIM_Y = DIM_Z = 3;
+		//cout << printArray(data->a, data->n) << endl;
+		//cout << printArray(data->b, data->n) << endl;
 
 //Start calculation
 		startTimer(&timer);
-		for(int i = 0; i < 100; i++){
-			stencil_parallel_naive(data, 0, 27, 9);
+		for(int i = 0; i < 10; i++){
+			stencil_parallel_naive(data, 0, data->n, param);
 			sawpData(data);
 		}
 		stopTimer(&timer);
-		int runTime = getTimerNs(&timer);
-		cout << "Total time: " << runTime << "ns" << endl;
+		long runTime = getTimerNs(&timer);
+		cout << "Total time: " << setprecision(3) << runTime/1000000 << "ms" << endl;
 //Start calculation
 
 		double total = 0;
@@ -278,8 +315,10 @@ int main(int argc, char* argv[])
 			total += data->b[i];
 		}
 
-		cout << printArray(data->b, 27) << endl;
+		//cout << printArray(data->b, 27) << endl;
 		cout << "total: " << total << endl;
+
+		fillQ2(data);
 		result(data);
 		return 0;
 	};
