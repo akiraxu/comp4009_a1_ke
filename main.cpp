@@ -44,7 +44,7 @@ void updateDIM(a1_data * data){
 
 void freeMem(a1_data * data){
 	delete data->a;
-	delete data->a;
+	delete data->b;
 }
 
 void sawpData(a1_data * data){
